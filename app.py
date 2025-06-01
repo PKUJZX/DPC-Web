@@ -124,32 +124,38 @@ def run_reconstruction_logic(dir_name, wavelength, mag, na, pixel_size_cam, reg_
     dpc_images = loadmat(full_mat_path)["IDPC"]  # 原始 DPC 图像 [4, H, W]
 
     # --- 定性重建 ---
-    img1=dpc_images[0,:,:]; img2=dpc_images[1,:,:]; img3=dpc_images[2,:,:]; img4=dpc_images[3,:,:]
+    img1 = dpc_images[0, :, :].astype(np.float32)
+    img2 = dpc_images[1, :, :].astype(np.float32)
+    img3 = dpc_images[2, :, :].astype(np.float32)
+    img4 = dpc_images[3, :, :].astype(np.float32)
     print(f'[{dir_name}] 开始定性重建...')
     start_time_qual = time.time()
     
-    dif1 = np.abs(img1.astype(np.int16) - img2.astype(np.int16))
-    dif2 = np.abs(img3.astype(np.int16) - img4.astype(np.int16))
-    sum1 = img1.astype(np.float32) + img2.astype(np.float32) # 使用 float 进行除法
-    sum2 = img3.astype(np.float32) + img4.astype(np.float32)
+    dpc_y_num = img1 - img2 
+    dpc_x_num = img3 - img4 
+    dpc_y_den = img1 + img2
+    dpc_x_den = img3 + img4
 
-    sum1[sum1 == 0] = 1e-9 
-    sum2[sum2 == 0] = 1e-9
+    epsilon = 1e-6 * (dpc_y_den.max() if dpc_y_den.max() > 0 else 1) 
+    dpc_y_signal = dpc_y_num / (dpc_y_den + epsilon)
+
+    epsilon = 1e-6 * (dpc_x_den.max() if dpc_x_den.max() > 0 else 1) 
+    dpc_x_signal = dpc_x_num / (dpc_x_den + epsilon)
 
     def normalize_to_uint8(array):
         min_val = array.min()
         max_val = array.max()
-        if max_val == min_val: 
-            return np.zeros_like(array, dtype=np.uint8)
-        array_normalized = (1.2 * (array - min_val) * (255.0 / (max_val - min_val)))
-        return np.clip(array_normalized, 0, 255).astype(np.uint8) # 添加 clip 以确保范围
+        if max_val == min_val:
+            return np.full(array.shape, 128, dtype=np.uint8)
+        normalized_array = ((array - min_val) * (255.0 / (max_val - min_val))).astype(np.uint8)
+        return normalized_array
 
-    res1_qual = normalize_to_uint8(dif1/sum1)
-    res2_qual = normalize_to_uint8(dif2/sum2)
+    res1_qual = normalize_to_uint8(dpc_y_signal) 
+    res2_qual = normalize_to_uint8(dpc_x_signal) 
     
     end_time_qual = time.time()
     print(f"[{dir_name}] 定性重建完成，耗时: {end_time_qual - start_time_qual:.4f} 秒")
-    
+
     qual_ud_filename = "UD_qualitative.png"
     qual_lr_filename = "LR_qualitative.png"
     Image.fromarray(res1_qual).save(os.path.join(current_output_dir_abs, qual_ud_filename))
