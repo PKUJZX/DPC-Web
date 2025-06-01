@@ -107,7 +107,7 @@ pip install Flask Flask-CORS numpy scipy Pillow matplotlib
 6. **查看结果**:
    - 重建完成后，状态消息将更新。
    - "重建结果" 部分将显示生成的图像。
-   - 每张图像下方会显示其文件名，并提供 `.npy` 文件的下载链接（如果适用）。
+   - 每张图像下方会显示其文件名，并提供 `.npy` 文件的下载链接。
    - 所有输出文件将保存在服务器上的 `outputs/[experiment_name]/` 目录中。
 
 #### 输出文件说明
