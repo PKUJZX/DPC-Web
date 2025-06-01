@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DPC 重建界面</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .param-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        .result-image-container {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 0.5rem;
+            background-color: #f9fafb;
+        }
+        .result-image-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.25rem;
+            margin: 0 auto;
+            display: block;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .file-input-label {
+            display: block; text-sm font-medium text-gray-700 mb-1;
+        }
+        .file-input { /* General style for file inputs */
+            mt-1 block w-full text-sm text-gray-500
+            file:mr-4 file:py-2 file:px-4
+            file:rounded-md file:border-0
+            file:text-sm file:font-semibold
+            file:bg-blue-50 file:text-blue-700
+            hover:file:bg-blue-100
+            border border-gray-300 rounded-md shadow-sm cursor-pointer p-2; /* Added padding for better appearance */
+        }
+        #folder_display_name {
+            margin-top: 0.5rem;
+            font-style: italic;
+            color: #4A5568; /* gray-700 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 md:p-8">
+    <div class="container mx-auto max-w-4xl bg-white p-6 md:p-8 rounded-lg shadow-xl">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-blue-600">DPC 图像重建</h1>
+            <p class="text-gray-600 mt-2">选择包含 TIFF 文件的文件夹，输入参数并开始重建过程。</p>
+        </header>
+
+        <form id="reconstructionForm" class="space-y-6" enctype="multipart/form-data">
+            <div>
+                <label for="folder_input" class="file-input-label">选择数据文件夹 (必需):</label>
+                <input type="file" id="folder_input" name="folder_input" webkitdirectory directory multiple class="file-input">
+                <div id="folder_display_name" class="text-xs">未选择文件夹</div>
+                <p class="mt-1 text-xs text-gray-500">
+                    选择一个文件夹。该文件夹的名称将用作实验名。<br>
+                    文件夹内必须直接包含以下文件: <code>lower.tif</code>, <code>up.tif</code>, <code>left.tif</code>, <code>right.tif</code>.
+                </p>
+            </div>
+
+            <details class="bg-gray-50 p-4 rounded-md">
+                <summary class="font-semibold text-gray-700 cursor-pointer">可选参数 (使用默认值或自定义)</summary>
+                <div class="param-grid mt-4">
+                    <div>
+                        <label for="wavelength" class="block text-sm font-medium text-gray-700">波长 (μm):</label>
+                        <input type="number" step="any" id="wavelength" name="wavelength" value="0.465"
+                               class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="mag" class="block text-sm font-medium text-gray-700">物镜放大倍数:</label>
+                        <input type="number" step="any" id="mag" name="mag" value="10.0"
+                               class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="na" class="block text-sm font-medium text-gray-700">数值孔径 (NA):</label>
+                        <input type="number" step="any" id="na" name="na" value="0.30"
+                               class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="pixel_size_cam" class="block text-sm font-medium text-gray-700">相机像素尺寸 (μm):</label>
+                        <input type="number" step="any" id="pixel_size_cam" name="pixel_size_cam" value="3.45"
+                               class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="reg_p" class="block text-sm font-medium text-gray-700">正则化参数 p:</label>
+                        <input type="number" step="any" id="reg_p" name="reg_p" value="5e-3"
+                               class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                </div>
+            </details>
+
+            <button type="submit" id="submitButton"
+                    class="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out">
+                <span id="buttonText">开始重建</span>
+                <div id="loader" class="loader hidden"></div>
+            </button>
+        </form>
+
+        <div id="statusMessages" class="mt-6 p-4 rounded-md hidden"></div>
+
+        <div id="results" class="mt-8 space-y-6 hidden"> <h2 class="text-2xl font-semibold text-gray-700 border-b pb-2">重建结果</h2>
+            
+            <div id="qualitative_UD_container" class="result-image-container hidden">
+                <h3 class="text-lg font-medium text-gray-900">定性 UD 图像</h3>
+                <img id="qualitative_UD_img" src="https://placehold.co/400x300/E2E8F0/A0AEC0?text=等待图像" alt="定性 UD 图像">
+                <p class="text-xs text-gray-500 mt-2">文件: <span id="qualitative_UD_path"></span></p>
+            </div>
+            <div id="qualitative_LR_container" class="result-image-container hidden">
+                <h3 class="text-lg font-medium text-gray-900">定性 LR 图像</h3>
+                <img id="qualitative_LR_img" src="https://placehold.co/400x300/E2E8F0/A0AEC0?text=等待图像" alt="定性 LR 图像">
+                <p class="text-xs text-gray-500 mt-2">文件: <span id="qualitative_LR_path"></span></p>
+            </div>
+            <div id="full_UDLR_container" class="result-image-container hidden">
+                <h3 class="text-lg font-medium text-gray-900">4图像重建 (UDLR)</h3>
+                <img id="full_UDLR_img" src="https://placehold.co/400x300/E2E8F0/A0AEC0?text=等待图像" alt="4图像重建 UDLR">
+                <p class="text-xs text-gray-500 mt-2">PNG: <span id="full_UDLR_png_path"></span></p>
+                <p class="text-xs text-gray-500">NPY: <span id="full_UDLR_npy_path"></span></p>
+            </div>
+            <div id="UD_container" class="result-image-container hidden">
+                <h3 class="text-lg font-medium text-gray-900">2图像重建 (UD)</h3>
+                <img id="UD_img" src="https://placehold.co/400x300/E2E8F0/A0AEC0?text=等待图像" alt="2图像重建 UD">
+                <p class="text-xs text-gray-500 mt-2">PNG: <span id="UD_png_path"></span></p>
+                <p class="text-xs text-gray-500">NPY: <span id="UD_npy_path"></span></p>
+            </div>
+            <div id="LR_container" class="result-image-container hidden">
+                <h3 class="text-lg font-medium text-gray-900">2图像重建 (LR)</h3>
+                <img id="LR_img" src="https://placehold.co/400x300/E2E8F0/A0AEC0?text=等待图像" alt="2图像重建 LR">
+                <p class="text-xs text-gray-500 mt-2">PNG: <span id="LR_png_path"></span></p>
+                <p class="text-xs text-gray-500">NPY: <span id="LR_npy_path"></span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('reconstructionForm');
+        const statusMessages = document.getElementById('statusMessages');
+        const resultsDiv = document.getElementById('results');
+        const submitButton = document.getElementById('submitButton');
+        const buttonText = document.getElementById('buttonText');
+        const loader = document.getElementById('loader');
+        const folderInput = document.getElementById('folder_input');
+        const folderDisplayName = document.getElementById('folder_display_name');
+
+        const flaskServerUrl = 'http://127.0.0.1:5001'; 
+
+        const imagePlaceholders = {
+            qualitative_UD_img: document.getElementById('qualitative_UD_img'),
+            qualitative_LR_img: document.getElementById('qualitative_LR_img'),
+            full_UDLR_img: document.getElementById('full_UDLR_img'),
+            UD_img: document.getElementById('UD_img'),
+            LR_img: document.getElementById('LR_img')
+        };
+        const pathPlaceholders = {
+            qualitative_UD_path: document.getElementById('qualitative_UD_path'),
+            qualitative_LR_path: document.getElementById('qualitative_LR_path'),
+            full_UDLR_png_path: document.getElementById('full_UDLR_png_path'),
+            full_UDLR_npy_path: document.getElementById('full_UDLR_npy_path'),
+            UD_png_path: document.getElementById('UD_png_path'),
+            UD_npy_path: document.getElementById('UD_npy_path'),
+            LR_png_path: document.getElementById('LR_png_path'),
+            LR_npy_path: document.getElementById('LR_npy_path')
+        };
+        const imageContainers = {
+            qualitative_UD: document.getElementById('qualitative_UD_container'),
+            qualitative_LR: document.getElementById('qualitative_LR_container'),
+            full_UDLR: document.getElementById('full_UDLR_container'),
+            UD: document.getElementById('UD_container'),
+            LR: document.getElementById('LR_container')
+        };
+        
+        folderInput.addEventListener('change', function(event) {
+            if (event.target.files.length > 0) {
+                // Extract folder name from the relative path of the first file
+                const firstFileRelativePath = event.target.files[0].webkitRelativePath;
+                if (firstFileRelativePath) {
+                    const folderName = firstFileRelativePath.split('/')[0];
+                    folderDisplayName.textContent = `已选择文件夹: ${folderName} (包含 ${event.target.files.length} 个文件)`;
+                } else {
+                    // Fallback for browsers not supporting webkitRelativePath, though webkitdirectory implies it.
+                    // Or if only one file is selected without folder context (should not happen with webkitdirectory)
+                    folderDisplayName.textContent = `已选择 ${event.target.files.length} 个文件. 请确保选择的是一个文件夹。`;
+                }
+            } else {
+                folderDisplayName.textContent = '未选择文件夹';
+            }
+        });
+
+        function resetResults() {
+            resultsDiv.classList.add('hidden');
+            Object.values(imageContainers).forEach(container => container.classList.add('hidden'));
+            Object.values(imagePlaceholders).forEach(img => {
+                if (img.tagName === 'IMG') {
+                     img.src = 'https://placehold.co/400x300/E2E8F0/A0AEC0?text=等待图像';
+                }
+            });
+            Object.values(pathPlaceholders).forEach(p => p.innerHTML = '');
+            statusMessages.classList.add('hidden');
+            statusMessages.textContent = '';
+        }
+
+        function createFileLink(baseUrl, outputDir, filename, pathElement) {
+            pathElement.innerHTML = ''; 
+            const link = document.createElement('a');
+            link.href = `${baseUrl}/outputs/${outputDir}/${filename}?t=${new Date().getTime()}`;
+            link.textContent = `${outputDir}/${filename}`;
+            if (filename.toLowerCase().endsWith('.npy')) {
+                link.download = filename; 
+            }
+            pathElement.appendChild(link);
+        }
+
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            resetResults();
+
+            buttonText.textContent = '处理中...';
+            loader.classList.remove('hidden');
+            submitButton.disabled = true;
+
+            const formData = new FormData();
+            const files = folderInput.files;
+
+            if (files.length === 0) {
+                statusMessages.className = 'mt-6 p-4 rounded-md bg-red-100 text-red-700';
+                statusMessages.textContent = '错误: 请选择一个数据文件夹。';
+                statusMessages.classList.remove('hidden');
+                buttonText.textContent = '开始重建';
+                loader.classList.add('hidden');
+                submitButton.disabled = false;
+                return;
+            }
+
+            // Extract dir_name from the folder
+            let dir_name = "";
+            if (files[0].webkitRelativePath) {
+                dir_name = files[0].webkitRelativePath.split('/')[0];
+            } else {
+                // Fallback or error if webkitRelativePath is not available
+                // For simplicity, we'll show an error if this happens, as webkitdirectory should provide it.
+                statusMessages.className = 'mt-6 p-4 rounded-md bg-red-100 text-red-700';
+                statusMessages.textContent = '错误: 无法确定文件夹名称。请尝试使用支持文件夹上传的浏览器 (如 Chrome, Edge)。';
+                statusMessages.classList.remove('hidden');
+                buttonText.textContent = '开始重建';
+                loader.classList.add('hidden');
+                submitButton.disabled = false;
+                return;
+            }
+            
+            if (!dir_name) { // Should be caught by the above, but as a safeguard
+                statusMessages.className = 'mt-6 p-4 rounded-md bg-red-100 text-red-700';
+                statusMessages.textContent = '错误: 文件夹名称不能为空。';
+                statusMessages.classList.remove('hidden');
+                buttonText.textContent = '开始重建';
+                loader.classList.add('hidden');
+                submitButton.disabled = false;
+                return;
+            }
+            formData.append('dir_name', dir_name);
+
+            // Find and append specific TIFF files
+            const requiredTiffs = {
+                'lower_tif': 'lower.tif',
+                'up_tif': 'up.tif',
+                'left_tif': 'left.tif',
+                'right_tif': 'right.tif'
+            };
+            let foundTiffsCount = 0;
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                // Check if the file is directly in the selected folder, not a subfolder
+                if (file.webkitRelativePath === `${dir_name}/${file.name}`) {
+                    for (const key in requiredTiffs) {
+                        if (file.name.toLowerCase() === requiredTiffs[key]) {
+                            formData.append(key, file, file.name);
+                            foundTiffsCount++;
+                            break; 
+                        }
+                    }
+                }
+            }
+
+            if (foundTiffsCount < Object.keys(requiredTiffs).length) {
+                statusMessages.className = 'mt-6 p-4 rounded-md bg-red-100 text-red-700';
+                statusMessages.textContent = `错误: 未能在文件夹 "${dir_name}" 的顶层找到所有必需的 TIFF 文件 (lower.tif, up.tif, left.tif, right.tif)。请检查文件名和位置。`;
+                statusMessages.classList.remove('hidden');
+                buttonText.textContent = '开始重建';
+                loader.classList.add('hidden');
+                submitButton.disabled = false;
+                return;
+            }
+
+            // Append other parameters from the form
+            formData.append('wavelength', document.getElementById('wavelength').value);
+            formData.append('mag', document.getElementById('mag').value);
+            formData.append('na', document.getElementById('na').value);
+            formData.append('pixel_size_cam', document.getElementById('pixel_size_cam').value);
+            formData.append('reg_p', document.getElementById('reg_p').value);
+            
+            try {
+                const response = await fetch(`${flaskServerUrl}/reconstruct`, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const result = await response.json();
+                statusMessages.classList.remove('hidden');
+
+                if (response.ok) {
+                    resultsDiv.classList.remove('hidden'); 
+                    statusMessages.className = 'mt-6 p-4 rounded-md bg-green-100 text-green-700';
+                    statusMessages.textContent = `成功: ${result.message || '重建完成!'}`;
+                    
+                    const outputDirRelative = result.output_directory_relative;
+                    const generatedFiles = result.generated_files;
+
+                    if (generatedFiles.qualitative_UD_png) {
+                        imageContainers.qualitative_UD.classList.remove('hidden');
+                        imagePlaceholders.qualitative_UD_img.src = `${flaskServerUrl}/outputs/${outputDirRelative}/${generatedFiles.qualitative_UD_png}?t=${new Date().getTime()}`;
+                        createFileLink(flaskServerUrl, outputDirRelative, generatedFiles.qualitative_UD_png, pathPlaceholders.qualitative_UD_path);
+                    }
+                    if (generatedFiles.qualitative_LR_png) {
+                        imageContainers.qualitative_LR.classList.remove('hidden');
+                        imagePlaceholders.qualitative_LR_img.src = `${flaskServerUrl}/outputs/${outputDirRelative}/${generatedFiles.qualitative_LR_png}?t=${new Date().getTime()}`;
+                        createFileLink(flaskServerUrl, outputDirRelative, generatedFiles.qualitative_LR_png, pathPlaceholders.qualitative_LR_path);
+                    }
+
+                    if (generatedFiles.full_UDLR_png) {
+                        imageContainers.full_UDLR.classList.remove('hidden');
+                        imagePlaceholders.full_UDLR_img.src = `${flaskServerUrl}/outputs/${outputDirRelative}/${generatedFiles.full_UDLR_png}?t=${new Date().getTime()}`;
+                        createFileLink(flaskServerUrl, outputDirRelative, generatedFiles.full_UDLR_png, pathPlaceholders.full_UDLR_png_path);
+                    }
+                    if (generatedFiles.full_UDLR_npy) {
+                        createFileLink(flaskServerUrl, outputDirRelative, generatedFiles.full_UDLR_npy, pathPlaceholders.full_UDLR_npy_path);
+                    }
+
+                    if (generatedFiles.UD_png) {
+                        imageContainers.UD.classList.remove('hidden');
+                        imagePlaceholders.UD_img.src = `${flaskServerUrl}/outputs/${outputDirRelative}/${generatedFiles.UD_png}?t=${new Date().getTime()}`;
+                        createFileLink(flaskServerUrl, outputDirRelative, generatedFiles.UD_png, pathPlaceholders.UD_png_path);
+                    }
+                    if (generatedFiles.UD_npy) {
+                       createFileLink(flaskServerUrl, outputDirRelative, generatedFiles.UD_npy, pathPlaceholders.UD_npy_path);
+                    }
+
+                    if (generatedFiles.LR_png) {
+                        imageContainers.LR.classList.remove('hidden');
+                        imagePlaceholders.LR_img.src = `${flaskServerUrl}/outputs/${outputDirRelative}/${generatedFiles.LR_png}?t=${new Date().getTime()}`;
+                        createFileLink(flaskServerUrl, outputDirRelative, generatedFiles.LR_png, pathPlaceholders.LR_png_path);
+                    }
+                    if (generatedFiles.LR_npy) {
+                        createFileLink(flaskServerUrl, outputDirRelative, generatedFiles.LR_npy, pathPlaceholders.LR_npy_path);
+                    }
+
+                } else {
+                    statusMessages.className = 'mt-6 p-4 rounded-md bg-red-100 text-red-700';
+                    statusMessages.textContent = `错误: ${result.error || '发生未知错误'}`;
+                }
+
+            } catch (error) {
+                statusMessages.classList.remove('hidden');
+                statusMessages.className = 'mt-6 p-4 rounded-md bg-red-100 text-red-700';
+                statusMessages.textContent = `网络错误或服务器无响应: ${error.message}`;
+                console.error('Fetch error:', error);
+            } finally {
+                buttonText.textContent = '开始重建';
+                loader.classList.add('hidden');
+                submitButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
